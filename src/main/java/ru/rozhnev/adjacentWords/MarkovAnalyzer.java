@@ -1,6 +1,5 @@
 package ru.rozhnev.adjacentWords;
 
-import com.sun.deploy.net.MessageHeader;
 import gnu.trove.iterator.TIntIterator;
 import gnu.trove.map.hash.THashMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
@@ -38,7 +37,7 @@ public class MarkovAnalyzer {
     private static final Logger LOG = LoggerFactory.getLogger(MarkovAnalyzer.class);
 
     private final Dict dict;
-    private final List<String> wordIndex;
+    private final WordIndex wordIndex;
 
     public MarkovAnalyzer(WordReader reader) throws IOException {
         final long initSize = reader.getFileLength() / AVERAGE_WORD_SIZE;
@@ -47,11 +46,11 @@ public class MarkovAnalyzer {
         }
 
         dict = new Dict((int) initSize);
-        wordIndex = new ArrayList<>((int) initSize);
+        wordIndex = new WordIndex((int) initSize);
         load(reader);
     }
 
-    private MarkovAnalyzer(Dict dict, List<String> wordIndex) {
+    private MarkovAnalyzer(Dict dict, WordIndex wordIndex) {
         this.dict = dict;
         this.wordIndex = wordIndex;
     }
@@ -148,16 +147,20 @@ public class MarkovAnalyzer {
     }
 
     public void saveToFile(String fileName) throws IOException {
+        LOG.info("Saving to file "+fileName+"...");
         FSTObjectOutput out = new FSTObjectOutput(new FileOutputStream(fileName), createFSTConf());
         out.writeObject(dict);
+        final int dictSize = out.getWritten();
+        LOG.info("Dict size id " + dictSize);
         out.writeObject(wordIndex);
+        LOG.info("WordIndex size id " + (out.getWritten() - dictSize));
         out.close();
     }
 
     public static MarkovAnalyzer loadFromFile(String fileName) throws IOException, ClassNotFoundException {
         final FSTObjectInput objInput = new FSTObjectInput(new FileInputStream(fileName), createFSTConf());
         final Dict dict = (Dict) objInput.readObject();
-        final List<String> wordIndex = (List<String>) objInput.readObject();
+        final WordIndex wordIndex = (WordIndex) objInput.readObject();
         objInput.close();
         return new MarkovAnalyzer(dict, wordIndex);
     }
@@ -172,7 +175,7 @@ public class MarkovAnalyzer {
     }
 
     private static class Dict extends THashMap<String, TIntSet> {
-
+    //todo TIntSet -> int[]
         public Dict() {
         }
 
@@ -188,6 +191,15 @@ public class MarkovAnalyzer {
                 put((String) key, set);
             }
             return set;
+        }
+
+        public Object getEntry(Object key) {
+                int index = index(key);
+                return index < 0 ? null : _values[index];
+        }
+
+        public String getKey(String word) {
+            return null;
         }
     }
 
