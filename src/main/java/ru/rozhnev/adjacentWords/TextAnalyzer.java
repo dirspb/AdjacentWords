@@ -2,13 +2,10 @@ package ru.rozhnev.adjacentWords;
 
 import gnu.trove.iterator.TIntIterator;
 import gnu.trove.map.hash.THashMap;
-import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 import org.apache.commons.lang.StringUtils;
-import org.nustaq.serialization.FSTBasicObjectSerializer;
-import org.nustaq.serialization.FSTClazzInfo;
 import org.nustaq.serialization.FSTConfiguration;
 import org.nustaq.serialization.FSTObjectInput;
 import org.nustaq.serialization.FSTObjectOutput;
@@ -16,47 +13,39 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static java.lang.Long.min;
-import static java.util.Arrays.asList;
-import static org.apache.commons.lang.StringUtils.isNotBlank;
-
-public class MarkovAnalyzer {
-    private static final int AVERAGE_WORD_SIZE = 5;
+public class TextAnalyzer {
+    private static final int AVERAGE_WORD_SIZE = 50;
     private static final int INT_SET_SIZE = 10;
-    private static final Logger LOG = LoggerFactory.getLogger(MarkovAnalyzer.class);
+    private static final Logger LOG = LoggerFactory.getLogger(TextAnalyzer.class);
 
     private final Dict dict;
     private final WordIndex wordIndex;
 
-    public MarkovAnalyzer(WordReader reader) throws IOException {
+    public TextAnalyzer(WordReader reader) throws IOException {
         final long initSize = reader.getFileLength() / AVERAGE_WORD_SIZE;
         if (initSize > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(reader.getFileName() + " file is to big: " + reader.getFileLength() + " bytes");
         }
-
+        LOG.info("Load data: start");
         dict = new Dict((int) initSize);
         wordIndex = new WordIndex((int) initSize);
         load(reader);
+        LOG.info("Data load is done. Total " + wordIndex.size() + " words, " + dict.size() + " unique.");
     }
 
-    private MarkovAnalyzer(Dict dict, WordIndex wordIndex) {
+    private TextAnalyzer(Dict dict, WordIndex wordIndex) {
         this.dict = dict;
         this.wordIndex = wordIndex;
     }
 
     private void load(WordReader reader) throws IOException {
-        LOG.info("Load data: start");
         try {
             String word = reader.readWord();
             while (word != null) {
@@ -65,7 +54,6 @@ public class MarkovAnalyzer {
             }
         } finally {
             reader.close();
-            LOG.info("Data load is done. Total " + wordIndex.size() + " words, " + dict.size() + " unique.");
         }
     }
 
@@ -147,7 +135,7 @@ public class MarkovAnalyzer {
     }
 
     public void saveToFile(String fileName) throws IOException {
-        LOG.info("Saving to file "+fileName+"...");
+        LOG.info("Saving to file " + fileName + "...");
         FSTObjectOutput out = new FSTObjectOutput(new FileOutputStream(fileName), createFSTConf());
         out.writeObject(dict);
         final int dictSize = out.getWritten();
@@ -157,12 +145,12 @@ public class MarkovAnalyzer {
         out.close();
     }
 
-    public static MarkovAnalyzer loadFromFile(String fileName) throws IOException, ClassNotFoundException {
+    public static TextAnalyzer loadFromFile(String fileName) throws IOException, ClassNotFoundException {
         final FSTObjectInput objInput = new FSTObjectInput(new FileInputStream(fileName), createFSTConf());
         final Dict dict = (Dict) objInput.readObject();
         final WordIndex wordIndex = (WordIndex) objInput.readObject();
         objInput.close();
-        return new MarkovAnalyzer(dict, wordIndex);
+        return new TextAnalyzer(dict, wordIndex);
     }
 
     private static class CountingSet extends TObjectIntHashMap<String> {
@@ -175,7 +163,7 @@ public class MarkovAnalyzer {
     }
 
     private static class Dict extends THashMap<String, TIntSet> {
-    //todo TIntSet -> int[]
+        //todo TIntSet -> int[]
         public Dict() {
         }
 
@@ -194,8 +182,8 @@ public class MarkovAnalyzer {
         }
 
         public Object getEntry(Object key) {
-                int index = index(key);
-                return index < 0 ? null : _values[index];
+            int index = index(key);
+            return index < 0 ? null : _values[index];
         }
 
         public String getKey(String word) {
@@ -203,28 +191,5 @@ public class MarkovAnalyzer {
         }
     }
 
-//    public static class Node{
-//        public final FreqMap before = new FreqMap();
-//        public final FreqMap after = new FreqMap();
-//        @Override
-//        public String toString() {
-//            return "Node{" +
-//                    "before=" + before +
-//                    ", after=" + after +
-//                    '}';
-//        }
-//    }
-
-//    public static class FreqMap extends HashMap<String, Integer>{
-//        public static final int ONE = 1;
-//
-//        public void add(String word) {
-//            if (!containsKey(word)) {
-//                put(word, ONE);
-//            } else {
-//                put(word, get(word) + ONE);
-//            }
-//        }
-//    }
 }
 

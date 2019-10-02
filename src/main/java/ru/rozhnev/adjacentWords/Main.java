@@ -5,17 +5,14 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.stream.Collectors;
 
+import static java.lang.Runtime.getRuntime;
+
 public class Main {
 
     public static void main(String[] args) throws IOException {
         System.out.println(printGC());
-//        WordReader reader = WordReader.create("data/testMy.txt", "UTF-8");
-//        WordReader reader = WordReader.create("data/log400.txt", "windows-1251");
-        WordReader reader = WordReader.create("data/test.txt", "CP866");
-//        WordReader reader = WordReader.create("data/test200.txt", "CP866");
-//        WordReader reader = WordReader.create("data/hebrew.txt", "UTF-8");
-
-        MarkovAnalyzer a = new MarkovAnalyzer(reader);
+        WordReader reader = WordReader.create(args[0], args[1]);
+        TextAnalyzer a = new TextAnalyzer(reader);
 //        a.saveToFile(reader.getFileName()+".bin");
         System.out.println(printGcUsage());
 
@@ -32,13 +29,14 @@ public class Main {
         return ManagementFactory.getGarbageCollectorMXBeans().stream().map(GarbageCollectorMXBean::getName).collect(Collectors.joining(", "));
     }
     private static String printGcUsage() {
-        long millis = ManagementFactory.getGarbageCollectorMXBeans().stream().map(GarbageCollectorMXBean::getCollectionTime).reduce(Long::sum).get();
+        String gcTimes = ManagementFactory.getGarbageCollectorMXBeans().stream()
+                .map(mxBean -> mxBean.getName()+ ":"+ (mxBean.getCollectionTime()/1000L) + "s")
+                .collect(Collectors.joining(" ,"));
         System.gc();
-        Runtime runtime = Runtime.getRuntime();
 
-        return "GC time is " + (millis/1000) + " s " +
-                "Used Memory:"
-                + ((runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024);
+        return "GC times are " + gcTimes +
+                ". Used Memory:"
+                + ((getRuntime().totalMemory() - getRuntime().freeMemory()) / 1024 / 1024) + "MiB";
     }
 
 }

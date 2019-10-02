@@ -1,14 +1,13 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Main" type="Application" factoryName="Application" editBeforeRun="true">
+  <configuration default="false" name="1300-6g-CMS" type="Application" factoryName="Application" editBeforeRun="true">
     <envs>
       <env name="org.slf4j.simpleLogger.showDateTime" value="true" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="ru.rozhnev.adjacentWords.Main" />
     <module name="AdjacentWords" />
+    <option name="PROGRAM_PARAMETERS" value="data/1300utf8.txt UTF-8" />
     <option name="ENABLE_SWING_INSPECTOR" value="true" />
-    <option name="VM_PARAMETERS" value="-Xmx8g -Xms8g -XX:+PrintCommandLineFlags -XX:+UnlockExperimentalVMOptions -XX:+UseParallelGC" />
-    <RunnerSettings RunnerId="Run" />
-    <ConfigurationWrapper RunnerId="Run" />
+    <option name="VM_PARAMETERS" value="-Xmx6g -Xms6g -XX:+PrintCommandLineFlags -XX:+UnlockExperimentalVMOptions -XX:+UseConcMarkSweepGC" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

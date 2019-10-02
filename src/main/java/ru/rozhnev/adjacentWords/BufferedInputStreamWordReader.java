@@ -12,88 +12,84 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.nio.channels.FileChannel;
 
 import static java.lang.Character.isAlphabetic;
 import static java.lang.Character.toLowerCase;
 
-public class BufferedInputStreamWordReader extends InputStreamReader implements WordReader {
+public class BufferedInputStreamWordReader implements WordReader {
 
     private static final Logger LOG = LoggerFactory.getLogger(BufferedInputStreamWordReader.class);
 
     private final String fileName;
     private final long length;
     private final long startTime;
+    private final InputStreamReader isr;
+    private final FileInputStream fis;
+    private final FileChannel chan;
 
     private int lastReport = 0;
-    private long progress = 0;
     private int totalWordsSize = 0;
     private int wordsCount = 0;
 
     public BufferedInputStreamWordReader(String fileName, String charsetName)
             throws FileNotFoundException, UnsupportedEncodingException {
-        super(new BufferedInputStream(new FileInputStream(fileName), BUFF_SIZE), charsetName);
+        fis = new FileInputStream(fileName);
+        chan = fis.getChannel();
+        isr = new InputStreamReader(new BufferedInputStream(fis, BUFF_SIZE), charsetName);
         length = new File(fileName).length();
         this.fileName = fileName;
         startTime = System.currentTimeMillis();
-        LOG.info("Starting load of " + fileName + ", length is " + length);
+        LOG.info("Starting load of " + fileName + " ("+charsetName+"), length is " + length);
     }
 
     @Override
     @Nullable
     public String readWord() throws IOException {
         //todo CharBuffer?
-        CharArrayWriter writer = new CharArrayWriter();
+        StringBuilder buf = new StringBuilder(16);
         while (true) {
-            int c = read();
+            int c = isr.read();
             if (c == -1) {
                 break;
             }
-            progress++;
             if (!isAlphabetic(c)) {
-                if (writer.size() > 0) {
+                if (buf.length() > 0) {
                     break;
                 } else {
                     continue;//skip several whitespaces
                 }
             }
-            writer.write(toLowerCase(c));
+            buf.append((char)toLowerCase(c));
         }
-        if (writer.size() == 0) {
+        if (buf.length() == 0) {
             return null;
         }
         wordsCount++;
-        totalWordsSize += writer.size();
+        totalWordsSize += buf.length();
         if (needLogProgress()) {
             LOG.info(logProgress());
         }
-        return writer.toString();
+        return buf.toString().intern();
     }
-
-//    private int toLowerCaseWin1251(int b) {
-//        if (0xC0 <= b && b <= 0xDF) {
-//            return b + 0x20;
-//        }
-//        throw new NotImplementedException();
-//    }
-
-//    private boolean isLetterWin1251(int b) {
-//        return b >= 0xC0 //rus letters
-//                || (0x41 <= b && b <= 0x5A) //latin little
-//                || (0x61 <= b && b <= 0x7A); //latin capital
-//    }
 
     private boolean needLogProgress() {
         return wordsCount - lastReport > PROGRESS_LOG_PERIOD;
     }
 
-    private String logProgress() {
+    private String logProgress() throws IOException {
         lastReport = wordsCount;
-        return wordsCount + " words (" + 100L * progress / length + "%) loaded";
+        int elapsed = (int) ((System.currentTimeMillis() - startTime) / 1000L);
+        int wSpeed = wordsCount / elapsed;
+        int bSpeed = (int) (chan.position() * 60 / 1024 / 1024 / elapsed);
+        return wordsCount + " words (" + 100L * chan.position() / length + "%) loaded, "
+                +wSpeed+" w/s,"
+                +bSpeed+" MiB/min,";
     }
 
     @Override
     public void close() throws IOException {
-        super.close();
+        isr.close();
         LOG.info("Load time is " + ((System.currentTimeMillis() - startTime) / 1000) + "s");
         LOG.info("Average word length is " + 1D * totalWordsSize / wordsCount);
     }
