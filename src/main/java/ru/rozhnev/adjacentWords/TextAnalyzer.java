@@ -1,10 +1,11 @@
 package ru.rozhnev.adjacentWords;
 
-import gnu.trove.iterator.TIntIterator;
 import gnu.trove.map.hash.THashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
-import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
+import org.apache.commons.collections4.queue.CircularFifoQueue;
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.StringUtils;
 import org.nustaq.serialization.FSTConfiguration;
 import org.nustaq.serialization.FSTObjectInput;
@@ -12,13 +13,17 @@ import org.nustaq.serialization.FSTObjectOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static java.lang.System.arraycopy;
 
 public class TextAnalyzer {
     private static final int AVERAGE_WORD_SIZE = 50;
@@ -57,9 +62,37 @@ public class TextAnalyzer {
         }
     }
 
+    @Hot
+    public List<String> findLongestRepeat() {
+        CircularFifoQueue<String> queue = new CircularFifoQueue<>(1);
+        RepeatsCounter repeats = new RepeatsCounter();
+        for (String word : wordIndex) {
+            queue.add(word);
+            if (hasRepeats(queue)) {
+                repeats.clear();
+                repeats.add(queue);
+                queue = incSize(queue);
+            }
+        }
+        return repeats.last;
+    }
+
+    @Hot
+    private boolean hasRepeats(CircularFifoQueue<String> queue) {
+        final List<int[]> sets = analyze(queue);
+        return MyList.size(sets.get(0)) > 1;
+    }
+
+    private CircularFifoQueue<String> incSize(CircularFifoQueue<String> queue) {
+        CircularFifoQueue<String> res = new CircularFifoQueue<>(queue.maxSize() + 1);
+        res.addAll(queue);
+        return res;
+    }
+
+    @Hot
     public void addWord(String word) {
         int index = wordIndex.size();
-        dict.get(word).add(index);
+        dict.add(word, index);
         wordIndex.add(word);
     }
 
@@ -74,57 +107,34 @@ public class TextAnalyzer {
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toList());
 
-        final List<TIntSet> sets = new ArrayList<>(words.size());
-        int minSetIndex = -1;
-        int minSetSize = Integer.MAX_VALUE;
-        for (String word : words) {
-            final TIntSet set = dict.get(word);
-            sets.add(new TIntHashSet(set));
-            if (set.size() < minSetSize) {
-                minSetSize = set.size();
-                minSetIndex = sets.size() - 1;//i
-            }
-        }
-        TIntSet minSet = sets.get(minSetIndex);
-        for (int i = 0; i < words.size(); i++) {
-            filterSets(minSet, sets.get(i), i - minSetIndex);
-        }
+        final List<int[]> sets = analyze(words);
 
         return "Words " + words + " are " +
-                (sets.get(0).isEmpty() ?
+                (MyList.isEmpty(sets.get(0)) ?
                         "not found" :
-                        ("found " + sets.get(0).size() + " times on positions: " + sets.toString())) +
+                        ("found " + MyList.size(sets.get(0)) + " times on positions: " + sets.toString())) +
                 "\n  Preceding words: " + evalIndexWords(sets.get(0), -1) +
                 "\n  Following words: " + evalIndexWords(sets.get(0), words.size());
 
     }
 
-    private String evalIndexWords(TIntSet set, int offset) {
-        TIntIterator i = set.iterator();
+    @Hot
+    private List<int[]> analyze(Collection<String> words) {
+        final List<int[]> sets = dict.getCopy(words);
+        int[] indices = new int[words.size()];
+        //todo implement
+        throw new NotImplementedException("TODO");
+    }
+
+    private String evalIndexWords(int[] set, int offset) {
         CountingSet res = new CountingSet();
-        while (i.hasNext()) {
-            int index = i.next() + offset;
+        for (int index : set) {
+            index += offset;
             if (index >= 0 && index < wordIndex.size()) {
                 res.add(wordIndex.get(index));
             }
         }
         return res.toString();
-    }
-
-    private void filterSets(TIntSet set1, TIntSet set2, int offset) {
-        if (set1 != set2) {
-            removeIf(set2, set1, -offset);
-            removeIf(set1, set2, offset);
-        }
-    }
-
-    private void removeIf(TIntSet set1, TIntSet set2, int offset) {
-        for (TIntIterator iterator = set1.iterator(); iterator.hasNext(); ) {
-            int next = iterator.next();
-            if (!set2.contains(next + offset)) {
-                iterator.remove();
-            }
-        }
     }
 
     private static FSTConfiguration createFSTConf() {
@@ -162,8 +172,8 @@ public class TextAnalyzer {
         }
     }
 
-    private static class Dict extends THashMap<String, TIntSet> {
-        //todo TIntSet -> int[]
+    private static class Dict extends THashMap<String, int[]> {
+
         public Dict() {
         }
 
@@ -172,24 +182,92 @@ public class TextAnalyzer {
         }
 
         @Override
-        public TIntSet get(Object key) {
-            TIntSet set = super.get(key);
+        @Nonnull
+        @Hot
+        public int[] get(Object key) {
+            int[] set = super.get(key);
             if (set == null) {
-                set = new TIntHashSet(INT_SET_SIZE);
+                set = MyList.create(INT_SET_SIZE);
                 put((String) key, set);
             }
             return set;
         }
 
-        public Object getEntry(Object key) {
-            int index = index(key);
-            return index < 0 ? null : _values[index];
+        public List<int[]> getCopy(Collection<String> words) {
+            ArrayList<int[]> sets = new ArrayList<>(words.size());
+            for (String word : words) {
+                sets.add(ArrayUtils.clone(get(word)));
+            }
+            return sets;
         }
 
-        public String getKey(String word) {
-            return null;
+        @Hot
+        public void add(String word, int index) {
+            int[] set = get(word);
+            if (MyList.isFull(set)) {
+                set = MyList.grow(set);
+                put(word, set);
+            }
+            MyList.add(set, index);
         }
     }
 
+    private static class RepeatsCounter {
+
+        private final List<String> last = new ArrayList<>();
+
+        public void clear() {
+            last.clear();
+        }
+
+        public void add(CircularFifoQueue<String> queue) {
+            last.clear();
+            last.addAll(queue);
+        }
+    }
+
+    /**
+     * Contains static methods for manipulations with custom ArrayList of int.
+     * Such lists are stored in {@code int[]} array with its size stored in {@code int[0]}.
+     * Following array elements store actual values.
+     */
+    private static class MyList {
+        public static int[] create(int size) {
+            return new int[size];
+        }
+
+        public static boolean isEmpty(int[] set) {
+            return set[0] == 0;
+        }
+
+        public static int size(int[] set) {
+            return set[0];
+        }
+
+        public static String toString(int[] set) {
+            return ArrayUtils.toString(set);
+        }
+
+        @Hot
+        public static int[] grow(int[] set) {
+            final int size = set[0];
+            final int[] newSet = new int[size * 2];
+            arraycopy(set, 0, newSet, 0, size);
+            return newSet;
+        }
+
+        @Hot
+        public static boolean isFull(int[] set) {
+            final int size = set[0];
+            return size == set.length;
+        }
+
+        @Hot
+        public static void add(int[] set, int index) {
+            final int size = set[0];
+            set[size] = index;
+            set[0] = size + 1;
+        }
+    }
 }
 

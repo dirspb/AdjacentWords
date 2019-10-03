@@ -14,6 +14,7 @@ public interface WordReader {
     }
 
     @Nullable
+    @Hot
     String readWord() throws IOException;
 
     void close() throws IOException;

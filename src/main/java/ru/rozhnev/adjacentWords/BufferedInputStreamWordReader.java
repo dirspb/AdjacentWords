@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.BufferedInputStream;
-import java.io.CharArrayWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -40,11 +39,12 @@ public class BufferedInputStreamWordReader implements WordReader {
         length = new File(fileName).length();
         this.fileName = fileName;
         startTime = System.currentTimeMillis();
-        LOG.info("Starting load of " + fileName + " ("+charsetName+"), length is " + length);
+        LOG.info("Starting load of " + fileName + " (" + charsetName + "), length is " + length);
     }
 
     @Override
     @Nullable
+    @Hot
     public String readWord() throws IOException {
         //todo CharBuffer?
         StringBuilder buf = new StringBuilder(16);
@@ -60,7 +60,7 @@ public class BufferedInputStreamWordReader implements WordReader {
                     continue;//skip several whitespaces
                 }
             }
-            buf.append((char)toLowerCase(c));
+            buf.append((char) toLowerCase(c));
         }
         if (buf.length() == 0) {
             return null;
@@ -73,6 +73,7 @@ public class BufferedInputStreamWordReader implements WordReader {
         return buf.toString().intern();
     }
 
+    @Hot
     private boolean needLogProgress() {
         return wordsCount - lastReport > PROGRESS_LOG_PERIOD;
     }
@@ -83,8 +84,8 @@ public class BufferedInputStreamWordReader implements WordReader {
         int wSpeed = wordsCount / elapsed;
         int bSpeed = (int) (chan.position() * 60 / 1024 / 1024 / elapsed);
         return wordsCount + " words (" + 100L * chan.position() / length + "%) loaded, "
-                +wSpeed+" w/s,"
-                +bSpeed+" MiB/min,";
+                + wSpeed + " w/s,"
+                + bSpeed + " MiB/min,";
     }
 
     @Override

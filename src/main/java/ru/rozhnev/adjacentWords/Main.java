@@ -14,7 +14,9 @@ public class Main {
         WordReader reader = WordReader.create(args[0], args[1]);
         TextAnalyzer a = new TextAnalyzer(reader);
 //        a.saveToFile(reader.getFileName()+".bin");
+        System.out.println("Longest repeat: " + a.findLongestRepeat().size());
         System.out.println(printGcUsage());
+
 
 //        System.out.println(a.analyze(" I "));
 //        System.out.println(a.analyze(" see "));
@@ -28,9 +30,10 @@ public class Main {
     private static String printGC() {
         return ManagementFactory.getGarbageCollectorMXBeans().stream().map(GarbageCollectorMXBean::getName).collect(Collectors.joining(", "));
     }
+
     private static String printGcUsage() {
         String gcTimes = ManagementFactory.getGarbageCollectorMXBeans().stream()
-                .map(mxBean -> mxBean.getName()+ ":"+ (mxBean.getCollectionTime()/1000L) + "s")
+                .map(mxBean -> mxBean.getName() + ":" + (mxBean.getCollectionTime() / 1000L) + "s")
                 .collect(Collectors.joining(" ,"));
         System.gc();
 
